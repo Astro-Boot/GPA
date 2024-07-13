@@ -5,7 +5,9 @@ using GPA.Common.DTOs.Unmapped;
 using GPA.Common.Entities.Inventory;
 using GPA.Data.Inventory;
 using GPA.Entities.Common;
+using GPA.Utils;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 
 namespace GPA.Business.Services.Inventory
@@ -16,11 +18,14 @@ namespace GPA.Business.Services.Inventory
 
         public Task<ResponseDto<StockDto>> GetAllAsync(SearchDto search, Expression<Func<Stock, bool>>? expression = null);
 
-        public Task<ResponseDto<RawProductCatalogDto>> GetProductCatalogAsync(int page = 1, int pageSize = 10);
+        public Task<ResponseDto<ProductCatalogDto>> GetProductCatalogAsync(int page = 1, int pageSize = 10);
+
+        Task<ResponseDto<ExistanceDto>> GetExistanceAsync(int page = 1, int pageSize = 10);
 
         public Task<StockDto?> AddAsync(StockCreationDto dto);
 
-        public Task UpdateAsync(StockCreationDto dto);
+        public Task UpdateInputAsync(StockCreationDto dto);
+        public Task UpdateOutputAsync(StockCreationDto dto);
 
         public Task RemoveAsync(Guid id);
 
@@ -29,11 +34,13 @@ namespace GPA.Business.Services.Inventory
 
     public class StockService : IStockService
     {
+        private readonly IAddonRepository _addonRepository;
         private readonly IStockRepository _repository;
         private readonly IMapper _mapper;
 
-        public StockService(IStockRepository repository, IMapper mapper)
+        public StockService(IAddonRepository addonRepository, IStockRepository repository, IMapper mapper)
         {
+            _addonRepository = addonRepository;
             _repository = repository;
             _mapper = mapper;
         }
@@ -70,14 +77,31 @@ namespace GPA.Business.Services.Inventory
             };
         }
 
-        public async Task<ResponseDto<RawProductCatalogDto>> GetProductCatalogAsync(int page = 1, int pageSize = 10)
+        public async Task<ResponseDto<ProductCatalogDto>> GetProductCatalogAsync(int page = 1, int pageSize = 10)
         {
             var productCatalog = await _repository.GetProductCatalogAsync(page, pageSize);
-            return new ResponseDto<RawProductCatalogDto>
+            var productCatalogDto =  new ResponseDto<ProductCatalogDto>
             {
                 Count = await _repository.GetProductCatalogCountAsync(),
-                Data = _mapper.Map<IEnumerable<RawProductCatalogDto>>(productCatalog)
+                Data = _mapper.Map<IEnumerable<ProductCatalogDto>>(productCatalog)
             };
+
+            await MapAddonsToProduct(productCatalogDto.Data);
+
+            return productCatalogDto;
+        }
+
+        public async Task<ResponseDto<ExistanceDto>> GetExistanceAsync(int page = 1, int pageSize = 10)
+        {
+            var productCatalog = await _repository.GetExistenceAsync(page, pageSize);
+            var productCatalogDto =  new ResponseDto<ExistanceDto>
+            {
+                Count = await _repository.GetExistenceCountAsync(),
+                Data = _mapper.Map<IEnumerable<ExistanceDto>>(productCatalog)
+            };
+
+            await MapAddonsToProduct(productCatalogDto.Data);
+            return productCatalogDto;
         }
 
         public async Task<StockDto?> AddAsync(StockCreationDto dto)
@@ -88,7 +112,7 @@ namespace GPA.Business.Services.Inventory
             return _mapper.Map<StockDto>(savedStock);
         }
 
-        public async Task UpdateAsync(StockCreationDto dto)
+        public async Task UpdateInputAsync(StockCreationDto dto)
         {
             if (dto.Id is null)
             {
@@ -118,6 +142,39 @@ namespace GPA.Business.Services.Inventory
             }
         }
 
+        public async Task UpdateOutputAsync(StockCreationDto dto)
+        {
+            if (dto.Id is null)
+            {
+                throw new ArgumentNullException();
+            }
+
+            var savedStock = await _repository.GetByIdAsync(query => query, x => x.Id == dto.Id.Value);
+
+            var canEditStock =
+                    savedStock is not null &&
+                    savedStock.TransactionType == TransactionType.Output &&
+                    savedStock.Status == StockStatus.Draft &&
+                    (
+                        savedStock.ReasonId == (int)ReasonTypes.DamagedProduct ||
+                        savedStock.ReasonId != (int)ReasonTypes.ExpiredProduct ||
+                        savedStock.ReasonId != (int)ReasonTypes.RawMaterial
+                    );
+
+            if (canEditStock)
+            {
+                var newStock = _mapper.Map<Stock>(dto);
+                var stockDetails = _mapper.Map<List<StockDetails>>(dto.StockDetails);
+
+                foreach (var detail in stockDetails)
+                {
+                    detail.StockId = newStock.Id;
+                }
+
+                await _repository.UpdateAsync(newStock, stockDetails);
+            }
+        }
+
         public async Task RemoveAsync(Guid id)
         {
             var newStock = await _repository.GetByIdAsync(query => query, x => x.Id == id);
@@ -127,6 +184,46 @@ namespace GPA.Business.Services.Inventory
         public async Task CancelAsync(Guid id)
         {
             await _repository.CancelAsync(id);
+        }
+
+        private async Task MapAddonsToProduct(IEnumerable<ProductCatalogDto> products)
+        {
+            if (products is not null && products.Any())
+            {
+                var mappedAddons = await _addonRepository
+                    .GetAddonsByProductIdAsDictionary(products.Select(x => x.ProductId).ToList());
+
+                foreach (var product in products)
+                {
+                    if (mappedAddons.ContainsKey(product.ProductId))
+                    {
+                        product.Addons = _mapper.Map<AddonDto[]>(mappedAddons[product.ProductId]);
+                        var (debit,credit) = AddonCalculator.CalculateAddon(product.Price, product.Addons);
+                        product.Debit = debit;
+                        product.Credit = credit;
+                    }
+                }
+            }
+        }
+
+        private async Task MapAddonsToProduct(IEnumerable<ExistanceDto> products)
+        {
+            if (products is not null)
+            {
+                var mappedAddons = await _addonRepository
+                    .GetAddonsByProductIdAsDictionary(products.Select(x => x.ProductId).ToList());
+
+                foreach (var product in products)
+                {
+                    if (mappedAddons.ContainsKey(product.ProductId))
+                    {
+                        product.Addons = _mapper.Map<AddonDto[]>(mappedAddons[product.ProductId]);
+                        var (debit, credit) = AddonCalculator.CalculateAddon(product.Price, product.Addons);
+                        product.Debit = debit;
+                        product.Credit = credit;
+                    }
+                }
+            }
         }
     }
 }

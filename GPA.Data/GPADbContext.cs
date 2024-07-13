@@ -42,6 +42,8 @@ namespace GPA.Data
         public DbSet<Store> Store { get; set; }
         public DbSet<StockCycle> StockCycle { get; set; }
         public DbSet<StockCycleDetail> StockCycleDetails { get; set; }
+        public DbSet<Addon> Addons { get; set; }
+        public DbSet<ProductAddon> ProductAddons { get; set; }
 
         //INVOICE
         public DbSet<Client> Client { get; set; }
@@ -51,8 +53,12 @@ namespace GPA.Data
         public DbSet<PurchaseDetails> PurchaseDetails { get; set; }
         public DbSet<InvoiceDetails> InvoiceDetails { get; set; }
         public DbSet<StorePaymentsDetails> StorePaymentsDetails { get; set; }
+        public DbSet<ClientCredit> ClientCredits { get; set; }
+        public DbSet<InvoiceDetailsAddon> InvoiceDetailsAddons { get; set; }
 
         //SECURITY ADDED DINAMICALLY BY EF-CORE
+        public DbSet<GPAProfile> Profiles { get; set; }
+        public DbSet<GPAUserProfile> UserProfile { get; set; }
 
         //COMMON
         public DbSet<Delivery> Deliveries { get; set; }

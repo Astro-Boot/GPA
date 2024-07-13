@@ -14,6 +14,13 @@ namespace GPA.Bussiness.Services.Inventory.Mappers
             CreateMap<Category, CategoryDto>();
             CreateMap<CategoryDto, Category>();
 
+            CreateMap<Addon, AddonDto>();
+            CreateMap<AddonDto, Addon>();
+            CreateMap<RawAddons, AddonDto>();
+
+            CreateMap<ProductAddon, ProductAddonDto>();
+            CreateMap<ProductAddonDto, ProductAddon>();
+
             //ToDo: Obtener estas descripciones desde la base de datos mediante un include
             CreateMap<Product, ProductDto>()
                 .ForMember(dest => dest.Unit, opt => opt.MapFrom(src => "Unidad"))
@@ -87,8 +94,11 @@ namespace GPA.Bussiness.Services.Inventory.Mappers
             CreateMap<Store, StoreDto>();
             CreateMap<StoreDto, Store>();
 
-            CreateMap<RawProductCatalog, RawProductCatalogDto>();
-            CreateMap<RawProductCatalogDto, RawProductCatalog>();
+            CreateMap<RawProductCatalog, ProductCatalogDto>();
+            CreateMap<ProductCatalogDto, RawProductCatalog>();
+
+            CreateMap<Existence, ExistanceDto>();
+            CreateMap<ExistanceDto, Existence>();
 
             CreateMap<StockCycle, StockCycleDto>()
                 .ForMember(dest => dest.StartDate, opt =>
@@ -125,6 +135,9 @@ namespace GPA.Bussiness.Services.Inventory.Mappers
 
             CreateMap<StockCycleDetail, StockCycleCreationDetailDto>();
             CreateMap<StockCycleCreationDetailDto, StockCycleDetail>();
+
+            CreateMap<Stock, OutputCreationDto>();
+            CreateMap<OutputCreationDto, Stock>();
         }
     }
 

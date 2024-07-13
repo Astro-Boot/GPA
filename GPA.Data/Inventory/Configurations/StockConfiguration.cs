@@ -2,7 +2,6 @@
 using GPA.Data.Schemas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.ValueGeneration;
 
 namespace GPA.Data.Inventory.Configurations
 {
@@ -14,7 +13,7 @@ namespace GPA.Data.Inventory.Configurations
 
             builder.ToTable("Stocks", GPASchema.INVENTORY);
             builder.HasKey(x => x.Id);
-            builder.Property(x => x.Id).HasValueGenerator<SequentialGuidValueGenerator>()
+            builder.Property(x => x.Id).HasDefaultValueSql("NEWSEQUENTIALID()")
                 .IsRequired();
 
             builder.Property(x => x.Deleted).IsRequired().HasDefaultValue(false);
@@ -34,6 +33,10 @@ namespace GPA.Data.Inventory.Configurations
                .WithMany(x => x.Stocks)
                .HasForeignKey(x => x.ReasonId)
                .IsRequired();
+
+            builder.HasOne(x => x.Invoice)
+               .WithOne(x => x.Stock)
+               .HasForeignKey<Stock>(x => x.InvoiceId);
         }
     }
 }
